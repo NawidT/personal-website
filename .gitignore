@@ -4,3 +4,4 @@
 __pycache__
 credentials.json
 google-cloud-sdk
+virtualenv
