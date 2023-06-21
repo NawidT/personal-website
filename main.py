@@ -40,7 +40,7 @@ app.add_middleware(
 
 # Request Body Paramater
 class Item(BaseModel):
-    query: str | None = None
+    query: str
 
 # starter code
 embeddings = OpenAIEmbeddings(
