@@ -47,10 +47,16 @@ embeddings = OpenAIEmbeddings(
     openai_api_key=os.getenv('OPENAI_API_KEY'),
     model='text-embedding-ada-002'    
 )
-pinecone.init(api_key=os.getenv('PINECONE_API_KEY'), environment=os.getenv('PINECONE_ENVIRONMENT'))
+
+pinecone.init(
+    api_key=os.getenv('PINECONE_API_KEY'),
+    environment=os.getenv('PINECONE_ENVIRONMENT')
+)
+
 index = os.getenv('PINECONE_INDEX')
 docsem = Pinecone.from_existing_index(index_name=index, embedding=embeddings)
-prompt_template = "Pretend you are Akhter (Nawid) Tahmid. Speak in a professional manner, but don't use complicated words. Don't use information outside of whats given. Answer the following question in a couple short sentences: {question}?"
+prompt_template = "Pretend you're Akhter (Nawid) Tahmid. Speak professionally. No complicated words. Answer in a couple short sentences: {question}?"
+
 llm = ChatOpenAI(
     temperature=0, 
     openai_api_key=os.getenv('OPENAI_API_KEY'),
@@ -72,6 +78,6 @@ def read_init():
 def read_search(item: Item):
     if item.query == None:
         return {'status': 404, 'response': 'No query provided'}
-    docs = docsem.similarity_search(item.query) 
+    docs = docsem.similarity_search(item.query, k=1) 
     ans = qa_chain.run(input_documents=docs, question=prompt_template.format(question=item.query))
     return {'status': 200, 'response': ans}
