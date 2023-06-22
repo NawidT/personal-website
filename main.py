@@ -7,8 +7,9 @@ from pydantic import BaseModel
 # Langchain + Pinecone Imports
 from langchain.chat_models import ChatOpenAI
 from langchain import PromptTemplate
-from langchain.chains import LLMChain, SequentialChain
+from langchain.chains import LLMChain, SequentialChain, ConversationChain
 from langchain.chains.combine_documents.stuff import StuffDocumentsChain
+from langchain.memory import ConversationBufferWindowMemory
 
 
 from langchain.vectorstores import Pinecone
@@ -55,16 +56,14 @@ pinecone.init(
 
 index = os.getenv('PINECONE_INDEX')
 docsem = Pinecone.from_existing_index(index_name=index, embedding=embeddings)
-prompt_template = "Pretend you're Akhter (Nawid) Tahmid. Speak professionally. No complicated words. Answer in a couple short sentences: {question}?"
-
-llm = ChatOpenAI(
-    temperature=0, 
-    openai_api_key=os.getenv('OPENAI_API_KEY'),
-    model='gpt-3.5-turbo'
-)
+prompt_template = "Pretend you're Akhter (Nawid) Tahmid. Speak professionally. No complicated words. Answer in few short sentences: {question}?"
 
 qa_chain = load_qa_chain(
-    llm=llm, 
+    llm=ChatOpenAI(
+        temperature=0, 
+        openai_api_key=os.getenv('OPENAI_API_KEY'),
+        model='gpt-3.5-turbo'
+    ), 
     chain_type="stuff",
 )
 
@@ -78,6 +77,6 @@ def read_init():
 def read_search(item: Item):
     if item.query == None:
         return {'status': 404, 'response': 'No query provided'}
-    docs = docsem.similarity_search(item.query, k=1) 
+    docs = docsem.similarity_search(item.query, k=2) 
     ans = qa_chain.run(input_documents=docs, question=prompt_template.format(question=item.query))
     return {'status': 200, 'response': ans}
