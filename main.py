@@ -29,7 +29,8 @@ origins = [
     "http://127.0.0.1:5173",
     "https://resume-nawidt.vercel.app",
     "https://resume-sigma-eosin.vercel.app",
-    "https://resume-sigma-eosin.vercel.app/"
+    "https://resume-sigma-eosin.vercel.app/",
+    "https://nawidtahmid.vercel.app/"
 ]
 app.add_middleware(
     CORSMiddleware,
