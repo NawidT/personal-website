@@ -10,6 +10,8 @@ from langchain import PromptTemplate
 from langchain.chains import LLMChain, SequentialChain, ConversationChain
 from langchain.chains.combine_documents.stuff import StuffDocumentsChain
 from langchain.memory import ConversationBufferWindowMemory
+from langchain.prompts import PromptTemplate
+from langchain.llms import OpenAI
 
 
 from langchain.vectorstores import Pinecone
@@ -56,17 +58,29 @@ pinecone.init(
     environment=os.getenv('PINECONE_ENVIRONMENT')
 )
 
+# getting the index
 index = os.getenv('PINECONE_INDEX')
 docsem = Pinecone.from_existing_index(index_name=index, embedding=embeddings)
-prompt_template = "Pretend you're Akhter (Nawid) Tahmid. Speak professionally. No complicated words. Answer in few short sentences: {question}?"
 
-qa_chain = load_qa_chain(
-    llm=ChatOpenAI(
-        temperature=0, 
-        openai_api_key=os.getenv('OPENAI_API_KEY'),
-        model='gpt-3.5-turbo'
-    ), 
+# creating the prompt for second chain
+prompt = PromptTemplate(
+    input_variables=["question"],
+    template="Pretend you're Akhter (Nawid) Tahmid. Speak professionally. No complicated words. Answer in few short sentences: {question}?"
+)
+
+llm = OpenAI(temperature=0.7, max_tokens=500)
+
+# creating first chain for retrieval
+retr_chain = load_qa_chain(
+    llm=llm,
     chain_type="stuff",
+)
+
+# creating second chain for answering
+ans_chain = LLMChain(
+    llm=llm,
+    prompt=prompt,
+
 )
 
 @app.get("/")
@@ -80,5 +94,5 @@ def read_search(item: Item):
     if item.query == None:
         return {'status': 404, 'response': 'No query provided'}
     docs = docsem.similarity_search(item.query, k=2) 
-    ans = qa_chain.run(input_documents=docs, question=prompt_template.format(question=item.query))
+    #ans = qa_chain.run(input_documents=docs, question=prompt_template.format(question=item.query))
     return {'status': 200, 'response': ans}
