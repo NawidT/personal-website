@@ -5,10 +5,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 # Langchain + Pinecone Imports
-from langchain.chat_models import ChatOpenAI
 from langchain import PromptTemplate
-from langchain.chains import LLMChain, SequentialChain, ConversationChain
-from langchain.chains.combine_documents.stuff import StuffDocumentsChain
+from langchain.chains import LLMChain, RetrievalQA
 from langchain.memory import ConversationBufferWindowMemory
 from langchain.prompts import PromptTemplate
 from langchain.llms import OpenAI
@@ -33,6 +31,7 @@ origins = [
     "https://resume-sigma-eosin.vercel.app",
     "https://resume-sigma-eosin.vercel.app/",
     "https://nawidtahmid.vercel.app/",
+    "https://nawidtahmid.vercel.app",
     "https://nawidtahmid.vercel.app"
 ]
 app.add_middleware(
@@ -60,7 +59,7 @@ pinecone.init(
 
 # getting the index
 index = os.getenv('PINECONE_INDEX')
-docsem = Pinecone.from_existing_index(index_name=index, embedding=embeddings)
+pc_vecstr = Pinecone.from_existing_index(index_name=index, embedding=embeddings)
 
 # creating the prompt for second chain
 prompt = PromptTemplate(
@@ -71,9 +70,10 @@ prompt = PromptTemplate(
 llm = OpenAI(temperature=0.7, max_tokens=500)
 
 # creating first chain for retrieval
-retr_chain = load_qa_chain(
+retr_chain = RetrievalQA.from_chain_type(
     llm=llm,
-    chain_type="stuff",
+    chain_type='stuff',
+    retriever=pc_vecstr.as_retriever()
 )
 
 # creating second chain for answering
@@ -83,9 +83,12 @@ ans_chain = LLMChain(
 
 )
 
+
+# API ENDPOINTS ----------------------------------------------
+
 @app.get("/")
 def read_init():
-    if docsem == None:
+    if pc_vecstr == None:
         return {'status': 404}
     return {'status': 200}
 
@@ -93,6 +96,6 @@ def read_init():
 def read_search(item: Item):
     if item.query == None:
         return {'status': 404, 'response': 'No query provided'}
-    docs = docsem.similarity_search(item.query, k=2) 
-    #ans = qa_chain.run(input_documents=docs, question=prompt_template.format(question=item.query))
+    retr_feed = prompt.format(question="Who are you?")
+    ans = retr_chain.run(retr_feed)
     return {'status': 200, 'response': ans}
