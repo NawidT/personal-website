@@ -7,7 +7,6 @@ from pydantic import BaseModel
 # Langchain + Pinecone Imports
 from langchain import PromptTemplate
 from langchain.chains import LLMChain, RetrievalQA
-from langchain.memory import ConversationBufferWindowMemory
 from langchain.prompts import PromptTemplate
 from langchain.llms import OpenAI
 
@@ -15,7 +14,6 @@ from langchain.llms import OpenAI
 from langchain.vectorstores import Pinecone
 from langchain.embeddings.openai import OpenAIEmbeddings
 import pinecone
-from langchain.chains.question_answering import load_qa_chain
 
 app = FastAPI()
 load_dotenv()
@@ -31,7 +29,6 @@ origins = [
     "https://resume-sigma-eosin.vercel.app",
     "https://resume-sigma-eosin.vercel.app/",
     "https://nawidtahmid.vercel.app/",
-    "https://nawidtahmid.vercel.app",
     "https://nawidtahmid.vercel.app"
 ]
 app.add_middleware(
@@ -96,6 +93,6 @@ def read_init():
 def read_search(item: Item):
     if item.query == None:
         return {'status': 404, 'response': 'No query provided'}
-    retr_feed = prompt.format(question="Who are you?")
+    retr_feed = prompt.format(question=item.query)
     ans = retr_chain.run(retr_feed)
     return {'status': 200, 'response': ans}
