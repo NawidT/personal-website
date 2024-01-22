@@ -8,12 +8,12 @@ from pydantic import BaseModel
 from langchain import PromptTemplate
 from langchain.chains import LLMChain, RetrievalQA
 from langchain.prompts import PromptTemplate
-from langchain.llms import OpenAI
+from langchain_community.llms import OpenAI
 
 
-from langchain.vectorstores import Pinecone
+from pinecone import Pinecone
+from langchain.vectorstores import Pinecone as PineconeVectorStore
 from langchain.embeddings.openai import OpenAIEmbeddings
-import pinecone
 
 app = FastAPI()
 load_dotenv()
@@ -49,14 +49,11 @@ embeddings = OpenAIEmbeddings(
     model='text-embedding-ada-002'    
 )
 
-pinecone.init(
-    api_key=os.getenv('PINECONE_API_KEY'),
-    environment=os.getenv('PINECONE_ENVIRONMENT')
-)
+pc = Pinecone(api_key=os.getenv('PINECONE_API_KEY'), environment=os.getenv('PINECONE_ENVIRONMENT'))
 
 # getting the index
 index = os.getenv('PINECONE_INDEX')
-pc_vecstr = Pinecone.from_existing_index(index_name=index, embedding=embeddings)
+pc_vecstr = PineconeVectorStore.from_existing_index(index_name=index, embedding=embeddings)
 
 # creating the prompt for second chain
 prompt = PromptTemplate(
