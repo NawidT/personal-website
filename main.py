@@ -78,7 +78,7 @@ ans_chain = LLMChain(
 )
 
 
-# API ENDPOINTS ----------------------------------------------
+# API ENDPOINTS ---------------------------------------------
 
 @app.get("/")
 def read_init():
