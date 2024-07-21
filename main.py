@@ -9,7 +9,7 @@ from langchain.chat_models.openai import ChatOpenAI
 from langchain_core.prompts import PromptTemplate
 from langchain_pinecone import PineconeVectorStore
 from langchain_core.output_parsers.string import StrOutputParser
-from langchain.embeddings.openai import OpenAIEmbeddings
+from langchain_openai.embeddings import OpenAIEmbeddings
 
 app = FastAPI()
 load_dotenv()
