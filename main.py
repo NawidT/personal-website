@@ -5,14 +5,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 # Langchain + Pinecone Imports
-from langchain import PromptTemplate
-from langchain.chains import LLMChain, RetrievalQA
-from langchain.prompts import PromptTemplate
-from langchain.chat_models import ChatOpenAI
-
-
-from pinecone import Pinecone
-from langchain.vectorstores import Pinecone as PineconeVectorStore
+from langchain.chat_models.openai import ChatOpenAI
+from langchain_core.prompts import PromptTemplate
+from langchain_pinecone import PineconeVectorStore
+from langchain_core.output_parsers.string import StrOutputParser
 from langchain.embeddings.openai import OpenAIEmbeddings
 
 app = FastAPI()
@@ -41,44 +37,18 @@ class Item(BaseModel):
     query: str
 
 # starter code
-embeddings = OpenAIEmbeddings(
-    openai_api_key=os.getenv('OPENAI_API_KEY'),
-    model='text-embedding-ada-002'    
+llm = ChatOpenAI(temperature=0.7, openai_api_key=os.environ['OPENAI_API_KEY'])
+embed = OpenAIEmbeddings(model='text-embedding-3-large', dimensions=1536)
+vectstr = PineconeVectorStore(
+    pinecone_api_key=os.getenv('PINECONE_API_KEY'),
+    embedding=embed,
+    index_name='my-site-index'
 )
-
-pc = Pinecone(api_key=os.getenv('PINECONE_API_KEY'), environment=os.getenv('PINECONE_ENVIRONMENT'))
-
-# getting the index
-index = os.getenv('PINECONE_INDEX')
-pc_vecstr = PineconeVectorStore.from_existing_index(index_name=index, embedding=embeddings)
-
-# creating the prompt for second chain
-prompt = PromptTemplate(
-    input_variables=["question"],
-    template="Pretend you're Akhter (Nawid) Tahmid. Speak professionally. No complicated words. Answer in few short sentences: {question}?"
-)
-
-llm = ChatOpenAI(temperature=0.7, max_tokens=500)
-
-# creating first chain for retrieval
-retr_chain = RetrievalQA.from_chain_type(
-    llm=llm,
-    chain_type='stuff',
-    retriever=pc_vecstr.as_retriever()
-)
-
-# creating second chain for answering
-ans_chain = LLMChain(
-    llm=llm,
-    prompt=prompt,
-)
-
-
 # API ENDPOINTS ---------------------------------------------
 
 @app.get("/")
 def read_init():
-    if pc_vecstr == None:
+    if vectstr == None:
         return {'status': 404}
     return {'status': 200}
 
@@ -86,6 +56,13 @@ def read_init():
 def read_search(item: Item):
     if item.query == None:
         return {'status': 404, 'response': 'No query provided'}
-    retr_feed = prompt.format(question=item.query)
-    ans = retr_chain.run(retr_feed)
-    return {'status': 200, 'response': ans}
+    
+    context = ",".join([d.page_content for d in vectstr.similarity_search(item.query, k = 3)])
+    prompt = PromptTemplate.from_template(
+        "Pretend you're Akhter (Nawid) Tahmid. Speak professionally. No complicated words. Answer in few short sentences: {question}?. Here is Nawid's relevant past: " + context
+    )
+    chain = prompt | llm | StrOutputParser()
+
+    chain.invoke({
+        "question": item.query
+})
