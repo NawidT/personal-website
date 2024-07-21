@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from langchain import PromptTemplate
 from langchain.chains import LLMChain, RetrievalQA
 from langchain.prompts import PromptTemplate
-from langchain_community.llms import OpenAI
+from langchain.chat_models import ChatOpenAI
 
 
 from pinecone import Pinecone
@@ -20,9 +20,6 @@ load_dotenv()
 
 # CORS Setup
 origins = [
-    "http://localhost.tiangolo.com",
-    "https://localhost.tiangolo.com",
-    "http://localhost",
     "http://127.0.0.1:8000",
     "http://127.0.0.1:5173",
     "https://resume-nawidt.vercel.app",
@@ -61,7 +58,7 @@ prompt = PromptTemplate(
     template="Pretend you're Akhter (Nawid) Tahmid. Speak professionally. No complicated words. Answer in few short sentences: {question}?"
 )
 
-llm = OpenAI(temperature=0.7, max_tokens=500)
+llm = ChatOpenAI(temperature=0.7, max_tokens=500)
 
 # creating first chain for retrieval
 retr_chain = RetrievalQA.from_chain_type(
@@ -74,7 +71,6 @@ retr_chain = RetrievalQA.from_chain_type(
 ans_chain = LLMChain(
     llm=llm,
     prompt=prompt,
-
 )
 
 
