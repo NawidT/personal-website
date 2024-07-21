@@ -63,6 +63,8 @@ def read_search(item: Item):
     )
     chain = prompt | llm | StrOutputParser()
 
-    chain.invoke({
+    resp = chain.invoke({
         "question": item.query
-})
+    })
+
+    return {'status': 200, 'response': resp}
