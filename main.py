@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 # Langchain + Pinecone Imports
-from langchain.chat_models.openai import ChatOpenAI
+from langchain_openai.chat_models import ChatOpenAI
 from langchain_core.prompts import PromptTemplate
 from langchain_pinecone import PineconeVectorStore
 from langchain_core.output_parsers.string import StrOutputParser
