@@ -2,10 +2,6 @@ langchain
 langchain-community
 langchain-pinecone
 langchain-openai
-openai
-llama-index
-pinecone-client
-google-api-python-client
 fastapi
 uvicorn[standard]
 python-dotenv
