@@ -1,9 +1,12 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Form
+from fastapi.responses import PlainTextResponse
 from dotenv import load_dotenv
 import os
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from datetime import datetime
 import uvicorn
+
 # Langchain + Pinecone Imports
 from langchain_openai.chat_models import ChatOpenAI
 from langchain_core.prompts import PromptTemplate
@@ -132,20 +135,63 @@ def read_search(item: Item):
     r = router(question).name
     print(r)
 
-    if r == "recruiter":
+    if r == "unrelated_questions":
+        resp = "Sorry 😭 the question you asked is not related to my resume or professional experience"
+    elif r == "avoid_jailbreak":
+        resp = "Please don't jailbreak me."
+    else:
         context = "\n".join([d.page_content for d in vectstr.similarity_search(item.query, k = 3)])
         resp = chain.invoke({
             "question": item.query,
             "context": context
         })
-    elif r == "unrelated_questions":
-        resp = "Sorry 😭 the question you asked is not related to my resume or professional experience. It's giving irrelevant 💅."
-    elif r == "avoid_jailbreak":
-        resp = "Stawwppp. I'm just a boy 😭"
-    else:
-        resp = "Sorry 😭 I don't know how to answer that. I'm still learning. 🤖"
 
     return {'status': 200, 'response': resp}
 
-# if __name__ == "__main__":
-#     uvicorn.run(app, host="0.0.0.0", port=8000)
+@app.get("/habits", response_class=PlainTextResponse)
+def get_habits():
+    with open("habits.csv", "r") as f:
+        out = f.read()
+        print(type(out))
+        return out
+
+class HabitEntry(BaseModel):
+    gym: str
+    early_rise: str
+    social_detox: str
+    salah: str
+
+@app.post("/habits-today")
+def add_today_habit(
+    gym: str = Form(...),
+    early_rise: str = Form(...),
+    social_detox: str = Form(...),
+    salah: str = Form(...)
+):
+    today = datetime.now().strftime("%Y-%m-%d")
+    entry = f"{today},{gym},{early_rise},{social_detox},{salah}\n"
+
+    # Read all lines except a possible duplicate for today
+    lines = []
+    with open("habits.csv", "r") as f:
+        lines = f.readlines()
+
+    # Remove an existing entry for today if it exists
+    header = lines[0]
+    filtered = [line for line in lines[1:] if not line.startswith(today + ",")]
+
+    # make sure we're on a new line
+    if not filtered[-1].endswith("\n"):
+        filtered[-1] += "\n"
+
+    # Write back the header, filtered old rows, then append today's entry
+    with open("habits.csv", "w") as f:
+        f.write(header)
+        f.writelines(filtered)
+        f.write(entry)
+
+    return {"status": 200, "message": "Habit for today added."}
+
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000)
