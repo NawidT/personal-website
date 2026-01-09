@@ -1,10 +1,11 @@
-from fastapi import FastAPI, Form
+from fastapi import FastAPI, Form, Depends, HTTPException, status
 from fastapi.responses import PlainTextResponse
+from fastapi.security import APIKeyHeader
 from dotenv import load_dotenv
 import os
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from datetime import datetime
+from datetime import datetime, timedelta
 import uvicorn
 
 # Langchain + Pinecone Imports
@@ -19,10 +20,32 @@ from semantic_router.encoders import OpenAIEncoder
 app = FastAPI()
 load_dotenv()
 
+# API Key Security
+API_KEY_HEADER = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+def verify_api_key(api_key: str = Depends(API_KEY_HEADER)):
+    expected_key = os.getenv("API_SECRET_KEY")
+    if not expected_key:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="API key not configured on server"
+        )
+    if api_key != expected_key:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or missing API key",
+            headers={"WWW-Authenticate": "ApiKey"}
+        )
+    return api_key
+
 # CORS Setup
 origins = [
     "http://127.0.0.1:8000",
     "http://127.0.0.1:5173",
+    "http://127.0.0.1:5174",
+    "http://localhost:8000",
+    "http://localhost:5173",
+    "http://localhost:5174",
     "https://resume-nawidt.vercel.app",
     "https://resume-sigma-eosin.vercel.app",
     "https://resume-sigma-eosin.vercel.app/",
@@ -120,13 +143,13 @@ chain = prompt | llm | StrOutputParser()
 
 # API ENDPOINTS ---------------------------------------------
 
-@app.get("/")
+@app.get("/", dependencies=[Depends(verify_api_key)])
 def read_init():
     if vectstr == None:
         return {'status': 404}
     return {'status': 200}
 
-@app.post("/search")
+@app.post("/search", dependencies=[Depends(verify_api_key)])
 def read_search(item: Item):
     if item.query == None:
         return {'status': 404, 'response': 'No query provided'}
@@ -148,12 +171,53 @@ def read_search(item: Item):
 
     return {'status': 200, 'response': resp}
 
-@app.get("/habits", response_class=PlainTextResponse)
+@app.get("/habits", response_class=PlainTextResponse, dependencies=[Depends(verify_api_key)])
 def get_habits():
+    
     with open("habits.csv", "r") as f:
-        out = f.read()
-        print(type(out))
-        return out
+        lines = f.readlines()
+    
+    # If there's data beyond the header, fill in missing dates
+    if len(lines) > 1:
+        header = lines[0]
+        first_data_line = lines[1]
+        first_date = first_data_line.strip().split(",")[0]
+
+        # Get all the already present dates (after header)
+        present_dates = set()
+        for line in lines[1:]:
+            date_part = line.strip().split(",")[0]
+            if date_part:
+                present_dates.add(date_part)
+        
+        start = datetime.strptime(first_date, "%Y-%m-%d")
+        end = datetime.now() - timedelta(days=2)
+        delta = timedelta(days=1)
+
+        # For each date from start to end (day before yesterday), if missing, add a line with "no" for each habit
+        current = start
+        filler_lines = []
+        while current <= end:
+            date_str = current.strftime("%Y-%m-%d")
+            if date_str not in present_dates:
+                filler_lines.append(f"{date_str},no,no,no,no\n")
+            current += delta
+        
+        # If there are missing dates, add them and rewrite the file
+        if filler_lines:
+            all_data_lines = lines[1:] + filler_lines
+            # Sort by date
+            all_data_lines.sort(key=lambda x: x.strip().split(",")[0])
+            
+            with open("habits.csv", "w") as f:
+                f.write(header)
+                f.writelines(all_data_lines)
+            
+            # Re-read the updated file
+            with open("habits.csv", "r") as f:
+                return f.read()
+    
+    return "".join(lines)
 
 class HabitEntry(BaseModel):
     gym: str
@@ -161,27 +225,28 @@ class HabitEntry(BaseModel):
     social_detox: str
     salah: str
 
-@app.post("/habits-today")
+@app.post("/habits-yesterday", dependencies=[Depends(verify_api_key)])
 def add_today_habit(
     gym: str = Form(...),
     early_rise: str = Form(...),
     social_detox: str = Form(...),
     salah: str = Form(...)
 ):
-    today = datetime.now().strftime("%Y-%m-%d")
-    entry = f"{today},{gym},{early_rise},{social_detox},{salah}\n"
+    yesterday = datetime.now() - timedelta(days=1)
+    yesterday_str = yesterday.strftime("%Y-%m-%d")
+    entry = f"{yesterday_str},{gym},{early_rise},{social_detox},{salah}\n"
 
-    # Read all lines except a possible duplicate for today
-    lines = []
+    # Read all lines
     with open("habits.csv", "r") as f:
         lines = f.readlines()
 
-    # Remove an existing entry for today if it exists
+    print(lines)
     header = lines[0]
-    filtered = [line for line in lines[1:] if not line.startswith(today + ",")]
+    # Remove an existing entry for today if it exists
+    filtered = [line for line in lines[1:] if not line.startswith(yesterday_str + ",")]
 
-    # make sure we're on a new line
-    if not filtered[-1].endswith("\n"):
+    # Make sure we're on a new line
+    if filtered and not filtered[-1].endswith("\n"):
         filtered[-1] += "\n"
 
     # Write back the header, filtered old rows, then append today's entry
@@ -190,7 +255,7 @@ def add_today_habit(
         f.writelines(filtered)
         f.write(entry)
 
-    return {"status": 200, "message": "Habit for today added."}
+    return {"status": 200, "message": "Habit for yesterday added."}
 
 
 if __name__ == "__main__":
