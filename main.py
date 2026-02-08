@@ -201,7 +201,6 @@ def get_habit_metadata(db, collection: str):
     tracked_doc_ref = db.collection(collection).document(METADATA_DOC_ID)
     tracked_doc = tracked_doc_ref.get()
     if tracked_doc.exists:
-        print("tracked_doc: ", tracked_doc.to_dict())
         return tracked_doc.to_dict()
     return None
 
@@ -239,8 +238,6 @@ def get_habits_firestore(collection: str = Query("habits", description="Firestor
     if not by_date:
         print("ERROR: No data found")
         return {}
-    print("by_date")
-    print(by_date)
     return by_date
 
 @app.post("/habits-yesterday", dependencies=[Depends(verify_api_key)])
