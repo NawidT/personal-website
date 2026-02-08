@@ -7,3 +7,4 @@ uvicorn[standard]
 python-dotenv
 semantic-router
 python-multipart
+firebase-admin
