@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 import os
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import uvicorn
 import firebase_admin
 from firebase_admin import credentials, firestore
@@ -241,14 +241,16 @@ def get_habits_firestore(collection: str = Query("habits", description="Firestor
     return by_date
 
 @app.post("/habits-yesterday", dependencies=[Depends(verify_api_key)])
-def add_today_habit_firestore(
+def add_yesterday_habit_firestore(
     habits: str = Form(...),
     collection: str = Query("habits", description="Firestore collection name")
 ):
     try:
         db = firestore.client()
-        yesterday = datetime.now() - timedelta(days=1)
+        # set timezone to NY
+        yesterday = datetime.now(timezone.utc) - timedelta(days=1)
         yesterday_str = yesterday.strftime("%Y-%m-%d")
+        print("yesterday was ", yesterday_str, " with dict: ", json.loads(habits))
         habits_dict = json.loads(habits)
         habits_dict["date"] = yesterday_str
         db.collection(collection).document(yesterday_str).set(habits_dict)
