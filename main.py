@@ -247,8 +247,7 @@ def add_yesterday_habit_firestore(
 ):
     try:
         db = firestore.client()
-        # set timezone to NY
-        yesterday = datetime.now(timezone.utc) - timedelta(days=1)
+        yesterday = datetime.now() - timedelta(days=1)
         yesterday_str = yesterday.strftime("%Y-%m-%d")
         print("yesterday was ", yesterday_str, " with dict: ", json.loads(habits))
         habits_dict = json.loads(habits)
