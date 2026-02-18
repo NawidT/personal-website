@@ -267,7 +267,7 @@ def add_yesterday_habit_firestore(
         ip_address = request.client.host if request.client else "127.0.0.1"
         tz_name = get_timezone_from_ip(ip_address)
         tz = ZoneInfo(tz_name) if tz_name != "UTC" else timezone.utc
-        yesterday = datetime.now(tz) - timedelta(days=1)
+        yesterday = datetime.now(tz) - timedelta(days=1, hours=5)
         yesterday_str = yesterday.strftime("%Y-%m-%d")
         print("ip address: ", ip_address, " timezone: ", tz_name)
         db = firestore.client()
