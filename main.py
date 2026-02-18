@@ -1,5 +1,5 @@
 import json
-from fastapi import FastAPI, Form, Depends, HTTPException, status, Query
+from fastapi import FastAPI, Form, Depends, HTTPException, status, Query, Request
 from fastapi.responses import PlainTextResponse
 from fastapi.security import APIKeyHeader
 from dotenv import load_dotenv
@@ -7,6 +7,9 @@ import os
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
+from urllib.request import urlopen
+from urllib.error import URLError
 import uvicorn
 import firebase_admin
 from firebase_admin import credentials, firestore
@@ -34,6 +37,20 @@ if not firebase_admin._apps:
     firebase_creds = json.loads(creds_json_str)
     cred = credentials.Certificate(firebase_creds)
     firebase_admin.initialize_app(cred)
+
+def get_timezone_from_ip(ip: str) -> str:
+    """Resolve IANA timezone (e.g. America/New_York) from IP; returns 'UTC' for localhost/private IPs or on failure."""
+    if not ip or ip.startswith("127.") or ip == "::1":
+        return "UTC"
+    if ip.startswith("10.") or ip.startswith("192.168.") or ip.startswith("172."):
+        return "UTC"
+    try:
+        with urlopen(f"http://ip-api.com/json/{ip}?fields=timezone", timeout=3) as resp:
+            data = json.loads(resp.read().decode())
+            return data.get("timezone", "UTC") or "UTC"
+    except (URLError, json.JSONDecodeError, KeyError, OSError):
+        return "UTC"
+
 
 def verify_api_key(api_key: str = Depends(API_KEY_HEADER)):
     expected_key = os.getenv("API_SECRET_KEY")
@@ -242,13 +259,18 @@ def get_habits_firestore(collection: str = Query("habits", description="Firestor
 
 @app.post("/habits-yesterday", dependencies=[Depends(verify_api_key)])
 def add_yesterday_habit_firestore(
+    request: Request,
     habits: str = Form(...),
-    collection: str = Query("habits", description="Firestore collection name")
+    collection: str = Query("habits", description="Firestore collection name"),
 ):
     try:
-        db = firestore.client()
-        yesterday = datetime.now() - timedelta(days=1)
+        ip_address = request.client.host if request.client else "127.0.0.1"
+        tz_name = get_timezone_from_ip(ip_address)
+        tz = ZoneInfo(tz_name) if tz_name != "UTC" else timezone.utc
+        yesterday = datetime.now(tz) - timedelta(days=1)
         yesterday_str = yesterday.strftime("%Y-%m-%d")
+        print("ip address: ", ip_address, " timezone: ", tz_name)
+        db = firestore.client()
         print("yesterday was ", yesterday_str, " with dict: ", json.loads(habits))
         habits_dict = json.loads(habits)
         habits_dict["date"] = yesterday_str
@@ -282,3 +304,18 @@ def create_new_habit_firestore(
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
+    # Minimal ASGI scope so Request has type="http" and client (host, port)
+    # scope = {
+    #     "type": "http",
+    #     "method": "POST",
+    #     "path": "/habits-yesterday",
+    #     "query_string": b"",
+    #     "headers": [],
+    #     "client": ("218.107.132.66", 0),
+    #     "server": ("127.0.0.1", 8000),
+    # }
+    # add_yesterday_habit_firestore(
+    #     request=Request(scope=scope),
+    #     habits='{"gym": true, "early_rise": true, "social_detox": true, "salah": true}',
+    #     collection="habits",
+    # )
