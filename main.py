@@ -5,7 +5,7 @@ from fastapi.security import APIKeyHeader
 from dotenv import load_dotenv
 import os
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from urllib.request import urlopen
@@ -281,6 +281,31 @@ def add_yesterday_habit_firestore(
         return {"status": 500, "message": str(e)}
 
 
+class SetHabitsForDayBody(BaseModel):
+    """Habit booleans for one calendar day. Keys should match names in the habits metadata doc."""
+
+    date: str = Field(..., description="Calendar day in YYYY-MM-DD (local meaning is up to the client).")
+    habits: dict[str, bool] = Field(default_factory=dict)
+
+
+@app.post("/habits-day", dependencies=[Depends(verify_api_key)])
+def set_habits_for_day_firestore(
+    body: SetHabitsForDayBody,
+    collection: str = Query("habits", description="Firestore collection name"),
+):
+    try:
+        datetime.strptime(body.date, "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid date: use YYYY-MM-DD",
+        )
+    db = firestore.client()
+    payload = {**body.habits, "date": body.date}
+    db.collection(collection).document(body.date).set(payload)
+    return {"status": 200, "message": "Habits saved.", "date": body.date}
+
+
 @app.post("/create-new-habit", dependencies=[Depends(verify_api_key)])
 def create_new_habit_firestore(
     habit_name: str = Form(...),
@@ -292,6 +317,8 @@ def create_new_habit_firestore(
     habitmetadata = get_habit_metadata(db, collection)
     if habitmetadata is None:
         habitmetadata = {}
+    # convert habit_name to lowercase and replace spaces with underscores
+    habit_name = habit_name.lower().replace(" ", "_")
     if habit_name in habitmetadata:
         return {"status": 400, "message": "Habit already exists."}
     habitmetadata[habit_name] = {
